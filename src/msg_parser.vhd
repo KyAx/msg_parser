@@ -1,18 +1,18 @@
 -------------------------------------------------------------------------------
 -- Title      : msg_parser
--- Project    : 
+-- Project    :
 -------------------------------------------------------------------------------
 -- File       : msg_parser.vhd
 -- Author     : Tran Leon  
--- Company    : 
+-- Company    :
 -- Created    : 2023-05-04
--- Last update: 2023-05-16
--- Platform   : 
+-- Last update: 2023-05-17
+-- Platform   :
 -- Standard   : VHDL'93/02
 -------------------------------------------------------------------------------
 -- Description: Message Parser
 -------------------------------------------------------------------------------
--- Copyright (c) 2023 
+-- Copyright (c) 2023
 -------------------------------------------------------------------------------
 -- Revisions  :
 -- Date        Version  Author  Description
@@ -60,13 +60,22 @@ architecture rtl of msg_parser is
   -- pipeline
   signal r_s_tdata : std_logic_vector(C_AXI_WIDTH-1 downto 0);
 
+  -- used for shifted payload, we need to wait length computation
+  signal r2_s_tdata : std_logic_vector(C_AXI_WIDTH-1 downto 0);
+
   -- used to shift
-  signal r_s_tvalid  : std_logic;
-  -- used to trigger concat
+  signal r_s_tvalid : std_logic;
+
+-- used to trigger concat
   signal r2_s_tvalid : std_logic;
+
+  signal r3_s_tvalid : std_logic;
+
   -- used for msg_valid
-  signal r_s_tlast   : std_logic;
-  signal r2_s_tlast  : std_logic;
+  signal r_s_tlast  : std_logic;
+  signal r2_s_tlast : std_logic;
+  signal r3_s_tlast : std_logic;
+  
 
   -- fsm
   type t_parser is (begin_packet, mid_packet, end_packet, send_packet);
@@ -88,15 +97,16 @@ architecture rtl of msg_parser is
   signal shift_len : integer := C_FIELD_CNT_WIDTH;
   signal shift_pay : integer := C_FIELD_CNT_WIDTH + C_FIELD_LEN_WIDTH;
 
-  signal r_loaded_len        : integer;
-  signal r_rmng_data         : std_logic_vector(C_FIELD_LEN_WIDTH-1 downto 0);
-  signal r_sent_payload_size : integer := 32;
+  signal r_loaded_len : integer;
+  signal r_rmng_data  : std_logic_vector(C_FIELD_LEN_WIDTH-1 downto 0);
+  signal r_byte_sent  : std_logic_vector(C_FIELD_LEN_WIDTH-1 downto 0);
 
   -- sof
   signal r_sof         : std_logic;
+  signal r2_sof_length : std_logic;
   signal r_ip_activate : std_logic;
-
-
+  signal r_sof_length  : std_logic;
+  signal r_length_pres : std_logic;
 
   function barrel_shifter(input_vector : std_logic_vector;
                           shift_amount : integer)
@@ -154,11 +164,15 @@ begin
       r_sof         <= '0';
     elsif rising_edge(clk) then
 
-      r_s_tdata <= s_tdata;
+      r_s_tdata  <= s_tdata;
+      r2_s_tdata <= r_s_tdata;
 
       -- for shift and for concat
       r_s_tvalid  <= s_tvalid;
       r2_s_tvalid <= r_s_tvalid;
+      r3_s_tvalid <= r2_s_tvalid;
+
+      r3_s_tlast <= r2_s_tlast;
 
       -- tlast is used for msg_valid : to not take into account the very first
       -- tlast, we use a r_ip_activate signal
@@ -200,8 +214,8 @@ begin
       if(s_tvalid = '1') then
         r_shift_length <= barrel_shifter(s_tdata, shift_len);
       end if;
-      if(r_s_tvalid = '1') then
-        r_shift_payload <= barrel_shifter(r_s_tdata, shift_pay);
+      if(r2_s_tvalid = '1') then
+        r_shift_payload <= barrel_shifter(r2_s_tdata, shift_pay);
       end if;
     end if;
   end process;
@@ -212,11 +226,8 @@ begin
       r_cat_data <= (others => '0');
 
     elsif rising_edge(clk) then
-
-
-
-      if(r2_s_tvalid = '1') then
-        r_cat_data <= concat(r_cat_data, r_shift_payload, r_loaded_len);
+      if(r3_s_tvalid = '1') then
+        r_cat_data <= concat(r_cat_data, r_shift_payload, to_integer(unsigned(r_byte_sent)*8));
       -- r_cat_length <= concat(msg_length, r_cat_length(r_cat_length'range), 16);
       end if;
 
@@ -229,26 +240,66 @@ begin
     if (rst = '1') then
       r_rmng_data  <= (others => '0');
       r_loaded_len <= 0;
+
+      r_byte_sent <= x"0004";
+
+      shift_pay <= 32;
+      shift_len <= 16;
+
+      r_msg_length <= (others => '0');
+
     elsif rising_edge(clk) then
 
-      if(r2_s_tlast = '1') then
+      r_sof_length  <= s_tvalid and r_sof;
+      r2_sof_length <= r_sof_length;
+
+
+      if(r3_s_tlast = '1') then
         r_loaded_len <= 0;
-      elsif (r2_s_tvalid = '1') then
-        r_loaded_len <= r_loaded_len + r_sent_payload_size;
+      elsif (r3_s_tvalid = '1') then
+        r_loaded_len <= r_loaded_len + to_integer(unsigned(r_byte_sent)*8);
       end if;
 
-      if(r_s_tvalid = '1') then
-        -- when less than 12 bytes to send, only two data and 1 msg_count
-        if(r_shift_length(C_FIELD_LEN_WIDTH-1 downto 0) < x"000C" and r_msg_count = x"0001") then  -- < and msg_count < ;
-          r_msg_length <= r_shift_length(C_FIELD_LEN_WIDTH-1 downto 0);
-          --  r_rmng_data <= std_logic_vector(unsigned(r_shift_length(C_FIELD_LEN_WIDTH-1 downto 0)) - r_loaded_len);
-          shift_pay    <= 0;
-        elsif(r_shift_length(C_FIELD_LEN_WIDTH-1 downto 0) > x"000C"
-
-              
-        end if;
+      -- or r_length < XX
+      if(r_sof_length = '1') then
+        --  r_msg_length_wait  <= std_logic_vector((unsigned(r_shift_length(C_FIELD_LEN_WIDTH-1 downto 0)) - (r_sent_payload_size))/8);
+        -- shift_pay    <= 32;
+        -- r_next_length <= r_shift_length(C_FIELD_LEN_WIDTH-1 downto 3);
+        r_msg_length <= r_shift_length(C_FIELD_LEN_WIDTH-1 downto 0);
+        r_rmng_data <= r_shift_length(C_FIELD_LEN_WIDTH-1 downto 0);
 
       end if;
+
+      if(r2_sof_length = '1') then
+        r_rmng_data <= std_logic_vector(unsigned(r_rmng_data) - unsigned(r_byte_sent));
+      end if;
+
+      if(r2_s_tvalid = '1') then
+        shift_pay <= 0; --to_integer(unsigned(r_rmng_data));
+      end if;
+
+
+      -- if(r_s_tvalid = '1') then
+      --   if(r_shift_length(C_FIELD_LEN_WIDTH-1 downto 0) < x"000C" and r_msg_count = x"0001") then
+      --     r_msg_length <= r_shift_length(C_FIELD_LEN_WIDTH-1 downto 0);
+      --     shift_pay <= 0;
+      --   end if;
+      -- end if;
+
+      -- when less than 12 bytes to send, only two data and 1 msg_count
+      -- if(r_shift_length(C_FIELD_LEN_WIDTH-1 downto 0) < x"000C" and r_msg_count = x"0001") then  < and msg_count < ;
+      --       r_msg_length <= r_shift_length(C_FIELD_LEN_WIDTH-1 downto 0);
+      --    r_rmng_data <= std_logic_vector(unsigned(r_shift_length(C_FIELD_LEN_WIDTH-1 downto 0)) - r_loaded_len);
+      --   shift_pay    <= 0;
+      -- elsif(r_shift_length(C_FIELD_LEN_WIDTH-1 downto 0) > x"000C" and r_msg_count > x"0001") then
+      --   r_msg_length <= r_shift_length(C_FIELD_LEN_WIDTH-1 downto 0);
+      --   r_msg_length_wait  <= r_shift_length(C_FIELD_LEN_WIDTH-1 downto 3);
+
+      --   shift_pay <= 0;
+
+      -- end if;
+
+
     end if;
   end process;
 
