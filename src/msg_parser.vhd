@@ -30,8 +30,9 @@ entity msg_parser is
       );
   port
     (
-      clk : in std_logic;
-      rst : in std_logic;
+      clk10 : in std_logic;
+      clk   : in std_logic;
+      rst   : in std_logic;
 
       s_tready : out std_logic;
       s_tvalid : in  std_logic;
@@ -54,256 +55,189 @@ architecture rtl of msg_parser is
   constant C_AXI_WIDTH       : integer := 64;
   constant C_FIELD_LEN_WIDTH : integer := 16;
   constant C_FIELD_CNT_WIDTH : integer := 16;
+  constant C_FIELD_LEN_POS   : integer := 3;
+  constant C_FIELD_CNT_POS   : integer := 1;
+  constant C_HDR_LEN_BYTES   : integer := 4;
 
-  --  constant C_STAGES : positive := log2ceilnz(32);
+  constant C_DUAL_CLOCK         : boolean := true;
+  constant C_FWFT               : boolean := false;
+  constant C_WR_DEPTH           : integer := 32;
+  constant C_WR_DATA_W          : integer := 64;
+  constant C_RD_DATA_W          : integer := 8;
+  constant C_RD_LATENCY         : integer := 1;
+  constant C_REN_CTRL           : boolean := true;
+  constant C_WEN_CTRL           : boolean := true;
+  constant C_ALMOST_EMPTY_LIMIT : integer := 2;
+  constant C_ALMOST_FULL_LIMIT  : integer := 2;
+  constant C_SANITY_CHECK       : boolean := false;
+  constant C_SIMULATION         : integer := 0;
 
-  -- pipeline
-  signal r_s_tdata : std_logic_vector(C_AXI_WIDTH-1 downto 0);
+  component ces_util_fifo is
+    generic (
+      g_dual_clock         : boolean;
+      g_fwft               : boolean;
+      g_wr_depth           : natural;
+      g_wr_data_w          : natural;
+      g_rd_data_w          : natural;
+      g_rd_latency         : natural;
+      g_ren_ctrl           : boolean;
+      g_wen_ctrl           : boolean;
+      g_almost_empty_limit : integer;
+      g_almost_full_limit  : integer;
+      g_sanity_check       : boolean;
+      g_simulation         : integer);
+    port (
+      wr_clk_i       : in  std_logic;
+      rd_clk_i       : in  std_logic;
+      wr_rst_n_i     : in  std_logic;
+      rd_rst_n_i     : in  std_logic;
+      din_i          : in  std_logic_vector(C_WR_DATA_W - 1 downto 0);
+      wen_i          : in  std_logic;
+      full_o         : out std_logic;
+      almost_full_o  : out std_logic;
+      dout_o         : out std_logic_vector(C_RD_DATA_W - 1 downto 0);
+      ren_i          : in  std_logic;
+      empty_o        : out std_logic;
+      almost_empty_o : out std_logic;
+      valid_o        : out std_logic);
+  end component ces_util_fifo;
 
-  -- used for shifted payload, we need to wait length computation
-  signal r2_s_tdata : std_logic_vector(C_AXI_WIDTH-1 downto 0);
 
-  -- used to shift
-  signal r_s_tvalid : std_logic;
+  signal wr_clk_i       : std_logic;
+  signal rd_clk_i       : std_logic;
+  signal wr_rst_n_i     : std_logic;
+  signal rd_rst_n_i     : std_logic;
+  signal din_i          : std_logic_vector(C_WR_DATA_W - 1 downto 0);
+  signal wen_i          : std_logic;
+  signal full_o         : std_logic;
+  signal almost_full_o  : std_logic;
+  signal dout_o         : std_logic_vector(C_RD_DATA_W - 1 downto 0);
+  signal ren_i          : std_logic;
+  signal empty_o        : std_logic;
+  signal almost_empty_o : std_logic;
+  signal valid_o        : std_logic;
 
--- used to trigger concat
-  signal r2_s_tvalid : std_logic;
+  signal r_data_cnt : integer;
+  signal r_payload_cnt : integer;
+  signal r_dout     : std_logic_vector(C_RD_DATA_W-1 downto 0);
 
-  signal r3_s_tvalid : std_logic;
-
-  -- used for msg_valid
-  signal r_s_tlast  : std_logic;
-  signal r2_s_tlast : std_logic;
-  signal r3_s_tlast : std_logic;
-  
-
-  -- fsm
-  type t_parser is (begin_packet, mid_packet, end_packet, send_packet);
-  signal fsm_parser : t_parser;
-
-  -- shifted data
-  signal r_shift_payload : std_logic_vector(C_AXI_WIDTH-1 downto 0);
-  signal r_shift_length  : std_logic_vector(C_AXI_WIDTH-1 downto 0);
-
-  -- concat data
-  signal r_cat_data   : std_logic_vector(8*MAX_MSG_BYTES-1 downto 0);
-  signal r_cat_length : std_logic_vector(C_FIELD_LEN_WIDTH-1 downto 0);
-
-  -- take out fields
-  signal r_msg_count  : std_logic_vector(C_FIELD_CNT_WIDTH-1 downto 0);
   signal r_msg_length : std_logic_vector(C_FIELD_LEN_WIDTH-1 downto 0);
+  signal r_msg_cnt    : std_logic_vector(C_FIELD_CNT_WIDTH-1 downto 0);
+  signal r_msg_data   : std_logic_vector(8*MAX_MSG_BYTES-1 downto 0);
 
-  -- shift amount
-  signal shift_len : integer := C_FIELD_CNT_WIDTH;
-  signal shift_pay : integer := C_FIELD_CNT_WIDTH + C_FIELD_LEN_WIDTH;
+  signal r_max_cnt : integer;
 
-  signal r_loaded_len : integer;
-  signal r_rmng_data  : std_logic_vector(C_FIELD_LEN_WIDTH-1 downto 0);
-  signal r_byte_sent  : std_logic_vector(C_FIELD_LEN_WIDTH-1 downto 0);
-
-  -- sof
-  signal r_sof         : std_logic;
-  signal r2_sof_length : std_logic;
-  signal r_ip_activate : std_logic;
-  signal r_sof_length  : std_logic;
-  signal r_length_pres : std_logic;
-
-  function barrel_shifter(input_vector : std_logic_vector;
-                          shift_amount : integer)
-    return std_logic_vector is
-    variable shifted_vector : std_logic_vector(input_vector'range);
-  begin
-    -- Initialize the shifted vector to the original input vector
-    shifted_vector := input_vector;
-
-    -- Shift the vector based on the shift amount
-    for i in input_vector'range loop
-      if i+shift_amount > input_vector'high then
-        shifted_vector(i) := '0';       -- pad with zeros on the left
-      else
-        shifted_vector(i) := input_vector(i+shift_amount);
-      end if;
-    end loop;
-
-    return shifted_vector;
-  end function;
-
-
-  -- loaded_len = size that there is already in the packet
-  function concat (
-    reg         : std_logic_vector;
-    concat_with : std_logic_vector;
-    loaded_len  : integer) return std_logic_vector is
-
-    variable concat_vec : std_logic_vector(reg'range);
-  begin
-    for i in 0 to reg'length-1 loop
-      if i > loaded_len-1 and i < loaded_len+C_AXI_WIDTH-1 then
-        concat_vec(i) := concat_with(i - loaded_len);
-      else
-        concat_vec(i) := reg(i);
-      end if;
-    end loop;
-
-    return concat_vec;
-  end function concat;
-
+  signal r_start_ip : std_logic;
 
 begin
 
-  -- axi data is 8 BYTES
-  -- payload is between 8 to 32   [BYTES]
-  -- payload is between 64 to 256 [BITS]
+  ces_util_fifo_1 : entity work.ces_util_fifo
+    generic map (
+      g_dual_clock         => C_DUAL_CLOCK,
+      g_fwft               => C_FWFT,
+      g_wr_depth           => C_WR_DEPTH,
+      g_wr_data_w          => C_WR_DATA_W,
+      g_rd_data_w          => C_RD_DATA_W,
+      g_rd_latency         => C_RD_LATENCY,
+      g_ren_ctrl           => C_REN_CTRL,
+      g_wen_ctrl           => C_WEN_CTRL,
+      g_almost_empty_limit => C_ALMOST_EMPTY_LIMIT,
+      g_almost_full_limit  => C_ALMOST_FULL_LIMIT,
+      g_sanity_check       => C_SANITY_CHECK,
+      g_simulation         => C_SIMULATION)
+    port map (
+      wr_clk_i       => wr_clk_i,
+      rd_clk_i       => rd_clk_i,
+      wr_rst_n_i     => wr_rst_n_i,
+      rd_rst_n_i     => rd_rst_n_i,
+      din_i          => din_i,
+      wen_i          => wen_i,
+      full_o         => full_o,
+      almost_full_o  => almost_full_o,
+      dout_o         => dout_o,
+      ren_i          => ren_i,
+      empty_o        => empty_o,
+      almost_empty_o => almost_empty_o,
+      valid_o        => valid_o);
 
-  -- general controller : ip activation, msg_valid ctrl, msg_count reader
-  p_general_ctrl : process(clk)
+
+
+  wr_clk_i <= clk;
+  rd_clk_i <= clk10;
+
+  p_input_data : process(clk)
+  begin
+    if(rst = '1') then
+    elsif rising_edge(clk) then
+
+      if(r_start_ip = '1') then
+        din_i <= s_tdata;
+        wen_i <= s_tvalid;
+      end if;
+
+      -- wait end of frame before starting IP
+      if(s_tlast = '1') then
+        r_start_ip <= '1';
+      end if;
+
+    end if;
+  end process;
+
+  p_read_fifo : process(clk10)
   begin
     if(rst = '1') then
 
-      r_ip_activate <= '0';
-      r_sof         <= '0';
-    elsif rising_edge(clk) then
+      r_max_cnt <= 0;
+      r_data_cnt <= 0;
+      r_payload_cnt <= 0;
+      r_msg_data <= (others => '0');
 
-      r_s_tdata  <= s_tdata;
-      r2_s_tdata <= r_s_tdata;
 
-      -- for shift and for concat
-      r_s_tvalid  <= s_tvalid;
-      r2_s_tvalid <= r_s_tvalid;
-      r3_s_tvalid <= r2_s_tvalid;
+    elsif rising_edge(clk10) then
 
-      r3_s_tlast <= r2_s_tlast;
 
-      -- tlast is used for msg_valid : to not take into account the very first
-      -- tlast, we use a r_ip_activate signal
-      if(r_ip_activate = '1') then
-        r_s_tlast  <= s_tlast;
-        r2_s_tlast <= r_s_tlast;
+
+      -- pipeline d_out
+      r_dout <= dout_o;
+
+      if(empty_o = '0') then
+        ren_i <= '1';
       end if;
 
-      -- msg_valid, we use r_ip_activate to avoid sending a valid on the very
-      -- first tlast
-      if(r2_s_tlast = '1') then
-        msg_valid <= '1';
-      else
-        msg_valid <= '0';
-      end if;
-
-      -- sof allows to take msg_count and msg_length
-      if (s_tlast = '1') then
-        r_sof         <= '1';
-        r_ip_activate <= '1';
-      elsif(s_tvalid = '1') then
-        r_sof <= '0';
-      end if;
-
-      if(s_tvalid = '1' and r_sof = '1') then
-        r_msg_count <= s_tdata(C_FIELD_CNT_WIDTH-1 downto 0);
-      end if;
-
-    end if;
-  end process;
-
-  -- shifting data
-  p_shifter : process (clk)
-  begin
-    if (rst = '1') then
-      r_shift_length  <= (others => '0');
-      r_shift_payload <= (others => '0');
-    elsif rising_edge(clk) then
-      if(s_tvalid = '1') then
-        r_shift_length <= barrel_shifter(s_tdata, shift_len);
-      end if;
-      if(r2_s_tvalid = '1') then
-        r_shift_payload <= barrel_shifter(r2_s_tdata, shift_pay);
-      end if;
-    end if;
-  end process;
-
-  p_concat : process(clk, rst) is
-  begin
-    if (rst = '1') then
-      r_cat_data <= (others => '0');
-
-    elsif rising_edge(clk) then
-      if(r3_s_tvalid = '1') then
-        r_cat_data <= concat(r_cat_data, r_shift_payload, to_integer(unsigned(r_byte_sent)*8));
-      -- r_cat_length <= concat(msg_length, r_cat_length(r_cat_length'range), 16);
-      end if;
-
-
-    end if;
-  end process;
-
-  p_rmng_msg : process(clk, rst) is
-  begin
-    if (rst = '1') then
-      r_rmng_data  <= (others => '0');
-      r_loaded_len <= 0;
-
-      r_byte_sent <= x"0004";
-
-      shift_pay <= 32;
-      shift_len <= 16;
-
-      r_msg_length <= (others => '0');
-
-    elsif rising_edge(clk) then
-
-      r_sof_length  <= s_tvalid and r_sof;
-      r2_sof_length <= r_sof_length;
-
-
-      if(r3_s_tlast = '1') then
-        r_loaded_len <= 0;
-      elsif (r3_s_tvalid = '1') then
-        r_loaded_len <= r_loaded_len + to_integer(unsigned(r_byte_sent)*8);
-      end if;
-
-      -- or r_length < XX
-      if(r_sof_length = '1') then
-        --  r_msg_length_wait  <= std_logic_vector((unsigned(r_shift_length(C_FIELD_LEN_WIDTH-1 downto 0)) - (r_sent_payload_size))/8);
-        -- shift_pay    <= 32;
-        -- r_next_length <= r_shift_length(C_FIELD_LEN_WIDTH-1 downto 3);
-        r_msg_length <= r_shift_length(C_FIELD_LEN_WIDTH-1 downto 0);
-        r_rmng_data <= r_shift_length(C_FIELD_LEN_WIDTH-1 downto 0);
-
-      end if;
-
-      if(r2_sof_length = '1') then
-        r_rmng_data <= std_logic_vector(unsigned(r_rmng_data) - unsigned(r_byte_sent));
-      end if;
-
-      if(r2_s_tvalid = '1') then
-        shift_pay <= 0; --to_integer(unsigned(r_rmng_data));
-      end if;
-
-
-      -- if(r_s_tvalid = '1') then
-      --   if(r_shift_length(C_FIELD_LEN_WIDTH-1 downto 0) < x"000C" and r_msg_count = x"0001") then
-      --     r_msg_length <= r_shift_length(C_FIELD_LEN_WIDTH-1 downto 0);
-      --     shift_pay <= 0;
-      --   end if;
+      -- if(r_data_cnt = (r_msg_length+C_HDR_LEN_BYTES)) then
+      --   r_msg_cnt <= std_logic_vector(unsigned(r_msg_cnt) - 1);
       -- end if;
 
-      -- when less than 12 bytes to send, only two data and 1 msg_count
-      -- if(r_shift_length(C_FIELD_LEN_WIDTH-1 downto 0) < x"000C" and r_msg_count = x"0001") then  < and msg_count < ;
-      --       r_msg_length <= r_shift_length(C_FIELD_LEN_WIDTH-1 downto 0);
-      --    r_rmng_data <= std_logic_vector(unsigned(r_shift_length(C_FIELD_LEN_WIDTH-1 downto 0)) - r_loaded_len);
-      --   shift_pay    <= 0;
-      -- elsif(r_shift_length(C_FIELD_LEN_WIDTH-1 downto 0) > x"000C" and r_msg_count > x"0001") then
-      --   r_msg_length <= r_shift_length(C_FIELD_LEN_WIDTH-1 downto 0);
-      --   r_msg_length_wait  <= r_shift_length(C_FIELD_LEN_WIDTH-1 downto 3);
+      --if(r_data_cnt = (to_integer(unsigned(r_msg_length)) + C_HDR_LEN_BYTES)) then
+      -- r_data_cnt <= 0;
 
-      --   shift_pay <= 0;
+      -- check word of 64 bits (8 bytes)
+      -- take into acuont msg_count
 
-      -- end if;
+      if (valid_o = '1') then
+        r_data_cnt <= r_data_cnt + 1;
+        r_max_cnt <= r_max_cnt + 8;
+     -- elsif( r_data > (unsigned(r_msg_length)+1) ) then
+       -- r_data_cnt <= 0;     
+      end if;
 
+      if(r_data_cnt = C_FIELD_CNT_POS) then
+        r_msg_cnt <= dout_o & r_dout;
+      end if;
+
+      if(r_data_cnt = C_FIELD_LEN_POS) then
+        r_msg_length <= dout_o & r_dout;
+        
+      end if;
+
+      if(r_data_cnt > C_FIELD_LEN_POS and r_payload_cnt < (unsigned(r_msg_length)+1)) then
+        r_payload_cnt <= r_payload_cnt + 1;
+        r_msg_data <= dout_o & r_msg_data(255 downto 8);
+      end if;
 
     end if;
   end process;
 
-  msg_data   <= r_cat_data;
-  msg_length <= r_msg_length;
+
 
 end rtl;

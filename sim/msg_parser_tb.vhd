@@ -6,7 +6,7 @@
 -- Author     :   <ltran@WDPHY064Z>
 -- Company    : 
 -- Created    : 2023-05-11
--- Last update: 2023-05-15
+-- Last update: 2023-05-16
 -- Platform   : 
 -- Standard   : VHDL'93/02
 -------------------------------------------------------------------------------
@@ -37,6 +37,8 @@ architecture bench of msg_parser_tb is
     generic (
       MAX_MSG_BYTES : integer);
     port (
+	
+	  clk10      : in std_logic;
       clk        : in  std_logic;
       rst        : in  std_logic;
       s_tready   : out std_logic;
@@ -51,9 +53,10 @@ architecture bench of msg_parser_tb is
       msg_error  : out std_logic);
   end component msg_parser;
   
-
   constant C_MAX_MSG_BYTES : integer :=  32;
+  
   signal clk        : std_logic;
+  signal clk10      : std_logic;
   signal rst        : std_logic;
   signal s_tready   : std_logic;
   signal s_tvalid   : std_logic;
@@ -66,7 +69,8 @@ architecture bench of msg_parser_tb is
   signal msg_data   : std_logic_vector(8*C_MAX_MSG_BYTES-1 downto 0);
   signal msg_error  : std_logic;
 
-  signal clock_period : time := 10ns;
+  signal clk_period : time := 100ns;
+  signal clk10_period : time := 10ns;
   signal stop_the_clock: boolean;
 
 begin  -- architecture bench
@@ -75,6 +79,7 @@ begin  -- architecture bench
     generic map (
       MAX_MSG_BYTES => C_MAX_MSG_BYTES)
     port map (
+      clk10      => clk10,
       clk        => clk,
       rst        => rst,
       s_tready   => s_tready,
@@ -128,11 +133,20 @@ begin  -- architecture bench
   end process;
 
     
-  clocking: process
+  clocking_clk: process
   begin
     while not stop_the_clock loop
-      clk <= '0', '1' after clock_period / 2;
-      wait for clock_period;
+      clk <= '0', '1' after clk_period / 2;
+      wait for clk_period;
+    end loop;
+    wait;
+  end process;
+  
+  clocking_clk10: process
+  begin
+    while not stop_the_clock loop
+      clk10 <= '0', '1' after clk10_period / 2;
+      wait for clk10_period;
     end loop;
     wait;
   end process;
