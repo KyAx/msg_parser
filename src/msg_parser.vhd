@@ -167,6 +167,7 @@ architecture rtl of msg_parser is
   signal r_tdata_almost_empty : std_logic;
   signal r_tdata_valid        : std_logic;
 
+
   -- tkeep FIFO
   signal r_tkeep_full         : std_logic;
   signal r_tkeep_almost_full  : std_logic;
@@ -187,36 +188,22 @@ architecture rtl of msg_parser is
 
   signal r_length_taken : std_logic;
 
-  signal r_data_cnt    : integer;
-  signal r_payload_cnt : integer;
-  signal r2_tdata_dout : std_logic_vector(C_RD_DATA_W-1 downto 0);
+  signal r_data_cnt          : integer;
+  signal r_payload_cnt       : integer;
+  signal r2_tdata_dout       : std_logic_vector(C_RD_DATA_W-1 downto 0);
   signal r_length_first_byte : std_logic_vector(7 downto 0);
 
   signal r2_tdata_ren : std_logic;
 
   signal r_start_ip : std_logic;
 
+
   type t_fsm_parser is (CNT, LEN, PAYLOAD);
   signal fsm_parser : t_fsm_parser;
 
 begin
 
-  -- dp_fifo_1: entity work.dp_fifo
-  --   generic map (
-  --     G_FIFO_DEPTH    => C_WR_DEPTH,
-  --     G_WR_DATA_WIDTH => C_WR_DATA_W,
-  --     G_RD_DATA_WIDTH => C_RD_DATA_W)
-  --   port map (
-  --     i_clk_write => clk,
-  --     i_clk_read  => clk10,
-  --     i_reset     => rst,
-  --     i_wr_data   => s_tdata,
-  --     i_wr_enable => s_tvalid,
-  --     o_wr_full   => r_tdata_full,
-  --     o_rd_data   => r_tdata_dout,
-  --     i_rd_enable => r_tdata_ren,
-  --     o_rd_empty  => r_tdata_empty);
-
+  -- FIFO : DATA
 
   ces_util_fifo_1 : entity work.ces_util_fifo
     generic map (
@@ -246,6 +233,8 @@ begin
       empty_o        => r_tdata_empty,
       almost_empty_o => r_tdata_almost_empty,
       valid_o        => r_tdata_valid);
+
+  -- FIFO : TKEEP
 
   ces_util_fifo_2 : entity work.ces_util_fifo
     generic map (
@@ -279,7 +268,7 @@ begin
 
 
 
-  p_input_data : process(clk)
+  p_start_ip : process(clk)
   begin
     if(rst = '1') then
     elsif rising_edge(clk) then
@@ -305,7 +294,7 @@ begin
       r_data_cnt    <= 0;
       r_payload_cnt <= 0;
       r_msg_data    <= (others => '0');
-      r_tkeep_cnt   <= x"00";
+      r_tkeep_cnt   <= x"01";
 
       r_msg_cnt_chk <= (others => '0');
 
@@ -317,6 +306,7 @@ begin
       r2_tdata_dout <= r_tdata_dout;
       r2_tdata_ren  <= r_tdata_ren;
 
+
       if(r_tdata_empty = '0') then
         r_tdata_ren <= '1';
       else
@@ -324,20 +314,19 @@ begin
       end if;
 
       -- activate tkeep and cnt
-      if (r_tdata_ren = '1') then
+      -- if(r_tdata_valid = '1') then
+      if(r_tkeep_cnt = x"02") then
+        r_tkeep_cnt <= x"01";
+      elsif(r_tdata_valid = '1' ) then
         r_tkeep_cnt <= std_logic_vector(unsigned(r_tkeep_cnt) + 1);
-        r_tkeep_ren <= r_tkeep_cnt(0);
+      end if;
+
+      if(r_tdata_valid = '1' and r_tkeep_cnt = x"01" ) then
+        r_tkeep_ren <= '1';
       else
         r_tkeep_ren <= '0';
       end if;
 
-
-
-
-
-      -- if (r_tdata_valid = '1' and r_tkeep_dout = b"11") then
-      --   r_data_cnt <= r_data_cnt + 1;
-      -- end if;
 
       case fsm_parser is
 
@@ -354,21 +343,21 @@ begin
 
         when LEN =>
           r_msg_valid <= '0';
-          
+
           if (r_tdata_valid = '1' and r_tkeep_dout = b"11") then
             r_data_cnt <= r_data_cnt + 1;
           end if;
 
-          if(r_data_cnt = C_FIELD_LEN_POS-1 and (r_tkeep_dout = b"11") ) then
+          if(r_data_cnt = C_FIELD_LEN_POS-1 and (r_tkeep_dout = b"11")) then
             r_length_first_byte <= r_tdata_dout;
           end if;
-          
-          if(r_data_cnt = C_FIELD_LEN_POS and (r_tkeep_dout = b"11") and r_tdata_valid = '1' ) then
+
+          if(r_data_cnt = C_FIELD_LEN_POS and (r_tkeep_dout = b"11") and r_tdata_valid = '1') then
             r_msg_length <= r_tdata_dout & r_length_first_byte;
             fsm_parser   <= PAYLOAD;
           end if;
 
-        
+
 
         when PAYLOAD =>
 
@@ -385,10 +374,6 @@ begin
             r_data_cnt    <= 0;
             r_msg_cnt_chk <= (others => '0');
             r_msg_data    <= (others => '0');
-
-            -- msg_length <= r_msg_length;
-            --    msg_data    <= r_msg_data;
-            -- r_msg_valid <= '1';
             fsm_parser <= CNT;
 
           -- for end msg
@@ -398,16 +383,12 @@ begin
 
             r_payload_cnt <= 0;
             r_data_cnt    <= C_FIELD_LEN_POS-1;
-            --  r_msg_data    <= r_tdata_dout & C_ZERO(255 downto 8);
             r_msg_data    <= r_tdata_dout & r_msg_data(255 downto 8);
-            --  x"000000000000 --r_msg_data(255 downto 8);
-
-          --  msg_length <= r_msg_length;
-            --   msg_data    <= r_msg_data;
-            --   r_msg_valid <= '1';
+            
             fsm_parser <= LEN;
 
           elsif((r_tdata_valid = '1') and (r_tkeep_dout = b"11") and r_payload_cnt = 0) then
+            
             r_payload_cnt <= r_payload_cnt + 1;
             r_msg_data    <= r_tdata_dout & C_ZERO(255 downto 8);
             r_data_cnt    <= r_data_cnt + 1;
@@ -427,10 +408,12 @@ begin
 
   end process;
 
-  msg_data  <= r_msg_data;
-  msg_valid <= r_msg_valid;
+
+
+  msg_data   <= r_msg_data;
+  msg_valid  <= r_msg_valid;
   msg_length <= r_msg_length;
-  r_wr_clk  <= clk;
-  r_rd_clk  <= clk10;
+  r_wr_clk   <= clk;
+  r_rd_clk   <= clk10;
 
 end rtl;
