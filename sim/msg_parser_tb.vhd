@@ -172,7 +172,7 @@ end procedure write_AXI4S;
     write_AXI4S('1','0', x"4d4d4d4d4d4d4d00",  b"11111111", '0', s_tvalid, s_tlast, s_tdata, s_tkeep, s_tuser);
     wait until rising_edge(clk);
 
-    write_AXI4S('1','0', x"114d4d4d_4d4d4d4d",  b"11111111", '0', s_tvalid, s_tlast, s_tdata, s_tkeep, s_tuser);
+    write_AXI4S('1','0', x"114d4d4d4d4d4d4d",  b"11111111", '0', s_tvalid, s_tlast, s_tdata, s_tkeep, s_tuser);
     wait until rising_edge(clk);
 
     write_AXI4S('1','0', x"3838383838383800",  b"11111111", '0', s_tvalid, s_tlast, s_tdata, s_tkeep, s_tuser);
@@ -193,6 +193,7 @@ end procedure write_AXI4S;
     write_AXI4S('1','1', x"0000000000005a5a",  b"00000011", '0', s_tvalid, s_tlast, s_tdata, s_tkeep, s_tuser);
     wait until rising_edge(clk);
 
+    s_tlast <= '0';
     
     wait;
 
