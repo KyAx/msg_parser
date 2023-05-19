@@ -109,6 +109,12 @@ begin  -- architecture bench
      signal o_terror : out std_logic
 ) is
 begin
+  o_tvalid <= tvalid;
+  o_tlast <= tlast;
+  o_tdata <= tdata;
+  o_tkeep <= tkeep;
+  o_terror <= terror;
+  
 end procedure write_AXI4S;
 
   begin
@@ -122,61 +128,72 @@ end procedure write_AXI4S;
     s_tvalid <= '0';
     s_tlast  <= '0';
     wait until rising_edge(clk);
-    s_tvalid <= '1';
-    s_tdata  <= x"ABCDDCEF00080001";
-    s_tkeep  <= b"11111111";
-    
---    write_AXI4S('1','0', x"ABCDDCEF00080001", x"FF", '0', s_tvalid, s_tlast, s_tdata, s_tkeep, s_tuser);
-    
-    wait until rising_edge(clk);
-    s_tlast  <= '1';
-    s_tkeep  <= b"00001111";
-    s_tdata  <= x"00000000630d658d";
-    wait until rising_edge(clk);
-    s_tlast  <= '0';
-    s_tvalid <= '0';
-    wait until rising_edge(clk);
-    s_tvalid <= '1';
-    s_tkeep  <= b"11111111";
-    s_tdata  <= x"045de506000e0002";
-    wait until rising_edge(clk);
-    s_tkeep  <= b"11111111";
-    s_tdata  <= x"0388956084130858";
-    wait until rising_edge(clk);
-    s_tkeep  <= b"11111111";
-    s_tdata  <= x"854680520008a5b0";
-    wait until rising_edge(clk);
-    s_tkeep  <= b"00001111";
-    s_tlast  <= '1';
-    s_tdata  <= x"00000000d845a30c";
-    wait until rising_edge(clk);
-
-
-    s_tkeep  <= b"11111111";
-    s_tdata  <= x"6262626200080008";
-    wait until rising_edge(clk);
-
-    s_tkeep  <= b"11111111";
-    s_tdata  <= x"6868000c62626262";
-    wait until rising_edge(clk);
-
-        s_tkeep  <= b"11111111";
-    s_tdata  <= x"6868686868686868";
-    wait until rising_edge(clk);
-
-    s_tkeep  <= b"11111111";
-    s_tdata  <= x"6262626200080008";
-    wait until rising_edge(clk);
-    
-    s_tkeep  <= b"11111111";
-    s_tdata  <= x"854680520008a5b0";
-    wait until rising_edge(clk);
-
 
     
-    s_tvalid <= '0';
-    s_tlast  <= '0';
+    write_AXI4S('1','0', x"ABCDDCEF00080001", b"11111111", '0', s_tvalid, s_tlast, s_tdata, s_tkeep, s_tuser);
+    wait until rising_edge(clk);
+    
+    write_AXI4S('1','1', x"00000000630d658d",  b"00001111", '0', s_tvalid, s_tlast, s_tdata, s_tkeep, s_tuser);
+    wait until rising_edge(clk);
+    
+    write_AXI4S('1','0', x"045de506000e0002",  b"11111111", '0', s_tvalid, s_tlast, s_tdata, s_tkeep, s_tuser);
+    wait until rising_edge(clk);
 
+    write_AXI4S('1','0', x"0388956084130858",  b"11111111", '0', s_tvalid, s_tlast, s_tdata, s_tkeep, s_tuser);
+    wait until rising_edge(clk);
+
+    write_AXI4S('1','0', x"854680520008a5b0",  b"11111111", '0', s_tvalid, s_tlast, s_tdata, s_tkeep, s_tuser);
+    wait until rising_edge(clk);
+
+    write_AXI4S('1','1', x"00000000d845a30c",  b"00001111", '0', s_tvalid, s_tlast, s_tdata, s_tkeep, s_tuser);
+    wait until rising_edge(clk);
+
+    write_AXI4S('1','0', x"6262626200080008",  b"11111111", '0', s_tvalid, s_tlast, s_tdata, s_tkeep, s_tuser);
+    wait until rising_edge(clk);
+
+    write_AXI4S('1','0', x"6868000c62626262",  b"11111111", '0', s_tvalid, s_tlast, s_tdata, s_tkeep, s_tuser);
+    wait until rising_edge(clk);
+
+    write_AXI4S('1','0', x"6868686868686868",  b"11111111", '0', s_tvalid, s_tlast, s_tdata, s_tkeep, s_tuser);
+    wait until rising_edge(clk);
+
+    write_AXI4S('1','0', x"70707070000a6868",  b"11111111", '0', s_tvalid, s_tlast, s_tdata, s_tkeep, s_tuser);
+    wait until rising_edge(clk);
+
+    write_AXI4S('1','0', x"000f707070707070",  b"11111111", '0', s_tvalid, s_tlast, s_tdata, s_tkeep, s_tuser);
+    wait until rising_edge(clk);
+
+    write_AXI4S('1','0', x"7a7a7a7a7a7a7a7a",  b"11111111", '0', s_tvalid, s_tlast, s_tdata, s_tkeep, s_tuser);
+    wait until rising_edge(clk);
+
+    write_AXI4S('1','0', x"0e7a7a7a7a7a7a7a",  b"11111111", '0', s_tvalid, s_tlast, s_tdata, s_tkeep, s_tuser);
+    wait until rising_edge(clk);
+
+    write_AXI4S('1','0', x"4d4d4d4d4d4d4d00",  b"11111111", '0', s_tvalid, s_tlast, s_tdata, s_tkeep, s_tuser);
+    wait until rising_edge(clk);
+
+    write_AXI4S('1','0', x"114d4d4d_4d4d4d4d",  b"11111111", '0', s_tvalid, s_tlast, s_tdata, s_tkeep, s_tuser);
+    wait until rising_edge(clk);
+
+    write_AXI4S('1','0', x"3838383838383800",  b"11111111", '0', s_tvalid, s_tlast, s_tdata, s_tkeep, s_tuser);
+    wait until rising_edge(clk);
+
+    write_AXI4S('1','0', x"3838383838383838",  b"11111111", '0', s_tvalid, s_tlast, s_tdata, s_tkeep, s_tuser);
+    wait until rising_edge(clk);
+
+    write_AXI4S('1','0', x"31313131000b3838",  b"11111111", '0', s_tvalid, s_tlast, s_tdata, s_tkeep, s_tuser);
+    wait until rising_edge(clk);
+
+    write_AXI4S('1','0', x"0931313131313131",  b"11111111", '0', s_tvalid, s_tlast, s_tdata, s_tkeep, s_tuser);
+    wait until rising_edge(clk);
+
+    write_AXI4S('1','0', x"5a5a5a5a5a5a5a00",  b"11111111", '0', s_tvalid, s_tlast, s_tdata, s_tkeep, s_tuser);
+    wait until rising_edge(clk);
+
+    write_AXI4S('1','1', x"0000000000005a5a",  b"00000011", '0', s_tvalid, s_tlast, s_tdata, s_tkeep, s_tuser);
+    wait until rising_edge(clk);
+
+    
     wait;
 
   end process;

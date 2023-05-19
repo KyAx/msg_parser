@@ -378,38 +378,6 @@ begin
             r_msg_data <= r_tdata_dout & r_msg_data(255 downto 8);
           end if;
       end case;
-      --
-      -- packet sent
-
-      --  msg sent
-      --  if ((r_payload_cnt = unsigned(r_msg_length)) and (unsigned(r_msg_cnt_chk) < unsigned(r_msg_cnt)) and (r_tdata_valid = '1') and r_tkeep_dout = b"11") then
-      --    r_data_cnt    <= C_FIELD_LEN_POS;
-      --    r_payload_cnt <= 0;
-      --    r_msg_cnt_chk <= std_logic_vector(unsigned(r_msg_cnt_chk) + 1);
-
-      --    msg_length  <= r_msg_length;
-      --    msg_data    <= r_msg_data;
-      --    r_msg_valid <= '1';
-      --  elsif((r_payload_cnt = unsigned(r_msg_length)) and (r_tdata_valid = '1') and (r_tkeep_dout = b"11")) then
-      --    r_data_cnt    <= 0;
-      --    r_payload_cnt <= 0;
-      --    r_msg_cnt_chk <= (others => '0');
-      --    r_msg_data    <= (others => '0');
-
-      --    msg_length  <= r_msg_length;
-      --    msg_data    <= r_msg_data;
-      --    r_msg_valid <= '1';
-
-      --  data cnt
-      -- elsif (r_tdata_valid = '1' and r_tkeep_dout = b"11") then
-      --    r_data_cnt <= r_data_cnt + 1;
-      --  end if;
-
-      --  concat msg
-      --  if((r_data_cnt > C_FIELD_LEN_POS) and (r_payload_cnt < (unsigned(r_msg_length))) and r_tdata_valid = '1') then
-      --    r_payload_cnt <= r_payload_cnt + 1;
-      --    r_msg_data    <= r_tdata_dout & r_msg_data(255 downto 8);
-      --  end if;
 
 
       -- msg_valid pulse
