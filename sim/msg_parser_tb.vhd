@@ -69,8 +69,8 @@ architecture bench of msg_parser_tb is
   signal msg_data   : std_logic_vector(8*C_MAX_MSG_BYTES-1 downto 0);
   signal msg_error  : std_logic;
 
-  signal clk_period     : time := 100ns;
-  signal clk10_period   : time := 10ns;
+  signal clk_period     : time := 100 ns;
+  signal clk10_period   : time := 10 ns;
   signal stop_the_clock : boolean;
 
 begin  -- architecture bench

@@ -81,11 +81,13 @@ architecture rtl of msg_parser is
   constant C_TKEEP_NB : integer                          := 3;
   constant C_ZERO     : std_logic_vector(msg_data'range) := (others => '0');
 
+  -- FIFO clk/rst
   signal r_wr_clk  : std_logic;
   signal r_rd_clk  : std_logic;
   signal r_wr_rstn : std_logic;
   signal r_rd_rstn : std_logic;
 
+  -- input FIFOs / output AXI4S
   signal r_tdata  : std_logic_vector(C_WR_DATA_W - 1 downto 0);
   signal r_tkeep  : std_logic_vector(C_TKEEP_WR_DATA_W - 1 downto 0);
   signal r_tvalid : std_logic;
@@ -118,11 +120,13 @@ architecture rtl of msg_parser is
   signal r_msg_cnt_chk : std_logic_vector(C_FIELD_CNT_WIDTH-1 downto 0);
   signal r_msg_valid   : std_logic;
 
+  -- Counters + retrieve length signals
   signal r_data_cnt          : integer;
   signal r_payload_cnt       : integer;
   signal r2_tdata_dout       : std_logic_vector(C_RD_DATA_W-1 downto 0);
   signal r_length_first_byte : std_logic_vector(7 downto 0);
 
+  -- activate IP
   signal r_start_ip : std_logic;
 
   -- fsm to parse msg
@@ -234,6 +238,7 @@ begin
   p_start_ip : process(clk)
   begin
     if(rst = '1') then
+      r_start_ip <= '0';
     elsif rising_edge(clk) then
 
       if(r_start_ip = '1') then
@@ -259,6 +264,7 @@ begin
   begin
     if(rst = '1') then
       r_tkeep_cnt <= x"01";
+      r_tkeep_ren <= '0';
     elsif rising_edge(clk10) then
 
       -- Counter : 1 data of tkeep is used for 2 data bytes
@@ -313,6 +319,11 @@ begin
       r_msg_data    <= (others => '0');
       r_msg_cnt_chk <= (others => '0');
       r_msg_valid   <= '0';
+      r_msg_length  <= (others => '0');
+
+      r_length_first_byte <= (others => '0');
+
+      fsm_parser <= CNT;
 
     elsif rising_edge(clk10) then
 
@@ -336,7 +347,7 @@ begin
 
         -- Retrieve MSG_LEN
         when LEN =>
-          
+
           r_msg_valid <= '0';
 
           if (r_tdata_valid = '1' and r_tkeep_dout = b"11") then
@@ -377,7 +388,7 @@ begin
             r_payload_cnt <= 0;
             r_data_cnt    <= C_FIELD_LEN_POS-1;
             r_msg_data    <= r_tdata_dout & r_msg_data(255 downto 8);
-            fsm_parser <= LEN;
+            fsm_parser    <= LEN;
 
           -- concatenate data and pad with zeros 
           elsif((r_tdata_valid = '1') and (r_tkeep_dout = b"11") and r_payload_cnt = 0) then
@@ -403,5 +414,7 @@ begin
   msg_length <= r_msg_length;
   r_wr_clk   <= clk;
   r_rd_clk   <= clk10;
+  r_wr_rstn  <= not(rst);
+  r_rd_rstn  <= not(rst);
 
 end rtl;

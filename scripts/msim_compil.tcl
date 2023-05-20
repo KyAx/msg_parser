@@ -1,32 +1,28 @@
-# Simply change the project settings in this section
-# for each new project. There should be no need to
-# modify the rest of the script.
 
-set tb_name msg_parser_tb.vhd
 
-set library_file_list [list \
-  work [list \
-    ../../src/fifo/ces_util_ccd_resync.vhd
-	../../src/fifo/ces_util_fifo.vhd
-	../../src/fifo/ces_util_pkg.vhd
-	../../src/fifo/ces_util_ram_cr_cw_ratio.vhd
-	../../src/fifo/ces_util_crw_crw.vhd
-			
-	../../src/fifo/msg_parser.vhd \
-    ../../sim/msg_parser_tb.vhd] \
-]
-set incdir_list [list \
-  ../../src \
-  ../../sim \
-]
-set top_level              work.$tb_name
+# Compiling every files
+
+set library_file_list {
+                           work  {
+						   
+						   				../../src/fifo/ces_util_pkg.vhd
+						   				../../src/fifo/ces_util_ram_crw_crw.vhd
+										../../src/fifo/ces_util_ram_cr_cw_ratio.vhd
+										../../src/fifo/ces_util_ccd_resync.vhd
+										../../src/fifo/ces_util_fifo.vhd
+										
+										../../src/msg_parser.vhd
+										
+										../../sim/msg_parser_tb.vhd
+
+										   }
+}
+set top_level              work.msg_parser_tb
 
 # After sourcing the script from ModelSim for the
 # first time use these commands to recompile.
-proc r  {} {
-  write format wave -window .main_pane.wave.interior.cs.body.pw.wf wave.do
-  uplevel #0 source run_tb.do
-}
+
+proc r  {} {uplevel #0 source ../msim_compil.tcl}
 proc rr {} {global last_compile_time
             set last_compile_time 0
             r                            }
@@ -40,12 +36,6 @@ if [catch {package require Tk}] {set tk_ok 0}
 set PrefMain(font) {Courier 10 roman normal}
 
 # Compile out of date files
-set incdir_str_ ""
-foreach incdir $incdir_list {
-    append incdir_str_ " +incdir+" $incdir
-}
-set incdir_str [string trim $incdir_str_ " "]
-
 set time_now [clock seconds]
 if [catch {set last_compile_time}] {
   set last_compile_time 0
@@ -58,7 +48,7 @@ foreach {library file_list} $library_file_list {
       if [regexp {.vhdl?$} $file] {
         vcom -93 $file
       } else {
-        vlog +define+SIM -sv05compat -timescale "1 ns / 1 ps" $file {*}[split $incdir_str " "]
+        vlog $file
       }
       set last_compile_time 0
     }
@@ -69,7 +59,16 @@ set last_compile_time $time_now
 # Load the simulation
 eval vsim $top_level
 
-# If waves exists
-if [file exist wave.do] {
-  source wave.do
+do ../../sim/msg_parser_tb.do
+
+# Run the simulation
+run 4us -all 
+
+puts {
+  Script commands are:
+
+  r = Recompile changed and dependent files
+ rr = Recompile everything
+  q = Quit without confirmation
 }
+
