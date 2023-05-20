@@ -6,4 +6,5 @@ msg_parser is an IP coded in VHDL which parses a message coming from an AXI4 Str
 
  - clone the project using `git clone https://github.com/KyAx/msg_parser`
 
-- start scripts/run_sim.bat
+- If you do have modelsim, you can start the simulation with `scripts/msim_compil.bat`  
+(If you don't have modelsim, there is a free and fast installation version here : https://www.intel.com/content/www/us/en/software-kit/750368/modelsim-intel-fpgas-standard-edition-software-version-18-1.html)

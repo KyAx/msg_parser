@@ -60,13 +60,13 @@ architecture rtl of msg_parser is
   constant C_FIELD_CNT_POS   : integer := 1;
   constant C_HDR_LEN_BYTES   : integer := 4;
 
-  constant C_TKEEP_WR_DEPTH  : integer := 32;
+  constant C_TKEEP_WR_DEPTH  : integer := 8;
   constant C_TKEEP_WR_DATA_W : integer := 8;
   constant C_TKEEP_RD_DATA_W : integer := 2;
 
   constant C_DUAL_CLOCK         : boolean := true;
   constant C_FWFT               : boolean := false;
-  constant C_WR_DEPTH           : integer := 32;
+  constant C_WR_DEPTH           : integer := 8;
   constant C_WR_DATA_W          : integer := 64;
   constant C_RD_DATA_W          : integer := 8;
   constant C_RD_LATENCY         : integer := 1;
@@ -78,7 +78,7 @@ architecture rtl of msg_parser is
   constant C_SIMULATION         : integer := 0;
 
   -- Number of bytes taken by one readen TKEEP
-  constant C_TKEEP_NB : integer                          := 3;
+  constant C_TKEEP_NB : std_logic_vector(7 downto 0)     := x"02";
   constant C_ZERO     : std_logic_vector(msg_data'range) := (others => '0');
 
   -- FIFO clk/rst
@@ -268,7 +268,7 @@ begin
     elsif rising_edge(clk10) then
 
       -- Counter : 1 data of tkeep is used for 2 data bytes
-      if(r_tkeep_cnt = x"02") then
+      if(r_tkeep_cnt = C_TKEEP_NB) then
         r_tkeep_cnt <= x"01";
       elsif(r_tdata_valid = '1') then
         r_tkeep_cnt <= std_logic_vector(unsigned(r_tkeep_cnt) + 1);
@@ -390,12 +390,12 @@ begin
             r_msg_data    <= r_tdata_dout & r_msg_data(255 downto 8);
             fsm_parser    <= LEN;
 
-          -- concatenate data and pad with zeros 
+          -- concatenate data and pad with zeros when rego to CNT
           elsif((r_tdata_valid = '1') and (r_tkeep_dout = b"11") and r_payload_cnt = 0) then
             r_payload_cnt <= r_payload_cnt + 1;
             r_msg_data    <= r_tdata_dout & C_ZERO(255 downto 8);
             r_data_cnt    <= r_data_cnt + 1;
-
+          
           -- concatenate data
           elsif((r_tdata_valid = '1') and (r_tkeep_dout = b"11")) then
             r_payload_cnt <= r_payload_cnt + 1;
@@ -403,6 +403,7 @@ begin
             r_data_cnt    <= r_data_cnt + 1;
 
           end if;
+
       end case;
 
     end if;
