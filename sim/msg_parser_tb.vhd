@@ -6,7 +6,7 @@
 -- Author     :   <ltran@WDPHY064Z>
 -- Company    : 
 -- Created    : 2023-05-11
--- Last update: 2023-05-19
+-- Last update: 2023-05-20
 -- Platform   : 
 -- Standard   : VHDL'93/02
 -------------------------------------------------------------------------------
@@ -22,6 +22,9 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
+
+library work;
+use work.csv_file_reader_pkg.all;
 
 -------------------------------------------------------------------------------
 
@@ -75,6 +78,7 @@ architecture bench of msg_parser_tb is
 
 begin  -- architecture bench
 
+  -- map msg_parser
   msg_parser_1 : entity work.msg_parser
     generic map (
       MAX_MSG_BYTES => C_MAX_MSG_BYTES)
@@ -94,28 +98,21 @@ begin  -- architecture bench
       msg_error  => msg_error);
 
   stimulus : process
-    
-   procedure write_AXI4S(
-     tvalid  : in  std_logic;
-     tlast   : in  std_logic;
-     tdata   : in  std_logic_vector;
-     tkeep   : in  std_logic_vector;
-     terror  : in  std_logic;
 
-     signal o_tvalid : out std_logic;
-     signal o_tlast : out std_logic;
-     signal o_tdata : out std_logic_vector;
-     signal o_tkeep : out std_logic_vector;
-     signal o_terror : out std_logic
-) is
-begin
-  o_tvalid <= tvalid;
-  o_tlast <= tlast;
-  o_tdata <= tdata;
-  o_tkeep <= tkeep;
-  o_terror <= terror;
-  
-end procedure write_AXI4S;
+    procedure read_test_file is
+      variable csv_file : csv_file_reader_type;
+    begin
+      csv_file.initialize("../../sim/sample_inputs.csv");
+      while csv_file.end_of_file = false loop
+        csv_file.readline;
+        s_tvalid <= csv_file.read_std_logic;
+        s_tlast  <= csv_file.read_std_logic;
+        s_tdata  <= csv_file.read_hex(s_tdata'length);
+        s_tkeep  <= csv_file.read_std_logic_vector(s_tkeep'length)(s_tkeep'range);
+        s_tuser  <= csv_file.read_std_logic;
+        wait until rising_edge(clk);
+      end loop;
+    end procedure read_test_file;
 
   begin
 
@@ -129,74 +126,15 @@ end procedure write_AXI4S;
     s_tlast  <= '0';
     wait until rising_edge(clk);
 
-    
-    write_AXI4S('1','0', x"ABCDDCEF00080001", b"11111111", '0', s_tvalid, s_tlast, s_tdata, s_tkeep, s_tuser);
-    wait until rising_edge(clk);
-    
-    write_AXI4S('1','1', x"00000000630d658d",  b"00001111", '0', s_tvalid, s_tlast, s_tdata, s_tkeep, s_tuser);
-    wait until rising_edge(clk);
-    
-    write_AXI4S('1','0', x"045de506000e0002",  b"11111111", '0', s_tvalid, s_tlast, s_tdata, s_tkeep, s_tuser);
-    wait until rising_edge(clk);
-
-    write_AXI4S('1','0', x"0388956084130858",  b"11111111", '0', s_tvalid, s_tlast, s_tdata, s_tkeep, s_tuser);
-    wait until rising_edge(clk);
-
-    write_AXI4S('1','0', x"854680520008a5b0",  b"11111111", '0', s_tvalid, s_tlast, s_tdata, s_tkeep, s_tuser);
-    wait until rising_edge(clk);
-
-    write_AXI4S('1','1', x"00000000d845a30c",  b"00001111", '0', s_tvalid, s_tlast, s_tdata, s_tkeep, s_tuser);
-    wait until rising_edge(clk);
-
-    write_AXI4S('1','0', x"6262626200080008",  b"11111111", '0', s_tvalid, s_tlast, s_tdata, s_tkeep, s_tuser);
-    wait until rising_edge(clk);
-
-    write_AXI4S('1','0', x"6868000c62626262",  b"11111111", '0', s_tvalid, s_tlast, s_tdata, s_tkeep, s_tuser);
-    wait until rising_edge(clk);
-
-    write_AXI4S('1','0', x"6868686868686868",  b"11111111", '0', s_tvalid, s_tlast, s_tdata, s_tkeep, s_tuser);
-    wait until rising_edge(clk);
-
-    write_AXI4S('1','0', x"70707070000a6868",  b"11111111", '0', s_tvalid, s_tlast, s_tdata, s_tkeep, s_tuser);
-    wait until rising_edge(clk);
-
-    write_AXI4S('1','0', x"000f707070707070",  b"11111111", '0', s_tvalid, s_tlast, s_tdata, s_tkeep, s_tuser);
-    wait until rising_edge(clk);
-
-    write_AXI4S('1','0', x"7a7a7a7a7a7a7a7a",  b"11111111", '0', s_tvalid, s_tlast, s_tdata, s_tkeep, s_tuser);
-    wait until rising_edge(clk);
-
-    write_AXI4S('1','0', x"0e7a7a7a7a7a7a7a",  b"11111111", '0', s_tvalid, s_tlast, s_tdata, s_tkeep, s_tuser);
-    wait until rising_edge(clk);
-
-    write_AXI4S('1','0', x"4d4d4d4d4d4d4d00",  b"11111111", '0', s_tvalid, s_tlast, s_tdata, s_tkeep, s_tuser);
-    wait until rising_edge(clk);
-
-    write_AXI4S('1','0', x"114d4d4d4d4d4d4d",  b"11111111", '0', s_tvalid, s_tlast, s_tdata, s_tkeep, s_tuser);
-    wait until rising_edge(clk);
-
-    write_AXI4S('1','0', x"3838383838383800",  b"11111111", '0', s_tvalid, s_tlast, s_tdata, s_tkeep, s_tuser);
-    wait until rising_edge(clk);
-
-    write_AXI4S('1','0', x"3838383838383838",  b"11111111", '0', s_tvalid, s_tlast, s_tdata, s_tkeep, s_tuser);
-    wait until rising_edge(clk);
-
-    write_AXI4S('1','0', x"31313131000b3838",  b"11111111", '0', s_tvalid, s_tlast, s_tdata, s_tkeep, s_tuser);
-    wait until rising_edge(clk);
-
-    write_AXI4S('1','0', x"0931313131313131",  b"11111111", '0', s_tvalid, s_tlast, s_tdata, s_tkeep, s_tuser);
-    wait until rising_edge(clk);
-
-    write_AXI4S('1','0', x"5a5a5a5a5a5a5a00",  b"11111111", '0', s_tvalid, s_tlast, s_tdata, s_tkeep, s_tuser);
-    wait until rising_edge(clk);
-
-    write_AXI4S('1','1', x"0000000000005a5a",  b"00000011", '0', s_tvalid, s_tlast, s_tdata, s_tkeep, s_tuser);
-    wait until rising_edge(clk);
-
-    s_tlast <= '0';
-    
+    read_test_file;
+    s_tvalid <= '0';
+    s_tlast  <= '0';
+    s_tdata  <= (others => '0');
+    s_tkeep  <= (others => '0');
+    s_tuser  <= '0';
     wait;
 
+ 
   end process;
 
 

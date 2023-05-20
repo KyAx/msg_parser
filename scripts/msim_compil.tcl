@@ -5,6 +5,9 @@
 set library_file_list {
                            work  {
 						   
+						   
+						   				../../sim/csv_file_reader_pkg.vhd
+										
 						   				../../src/fifo/ces_util_pkg.vhd
 						   				../../src/fifo/ces_util_ram_crw_crw.vhd
 										../../src/fifo/ces_util_ram_cr_cw_ratio.vhd
@@ -14,6 +17,7 @@ set library_file_list {
 										../../src/msg_parser.vhd
 										
 										../../sim/msg_parser_tb.vhd
+
 
 										   }
 }
@@ -46,7 +50,7 @@ foreach {library file_list} $library_file_list {
   foreach file $file_list {
     if { $last_compile_time < [file mtime $file] } {
       if [regexp {.vhdl?$} $file] {
-        vcom -93 $file
+        vcom $file
       } else {
         vlog $file
       }
