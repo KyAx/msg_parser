@@ -36,6 +36,7 @@ end entity msg_parser_tb;
 
 architecture bench of msg_parser_tb is
 
+  -- msg_parser declaration
   component msg_parser is
     generic (
       MAX_MSG_BYTES : integer);
@@ -97,7 +98,12 @@ begin  -- architecture bench
       msg_data   => msg_data,
       msg_error  => msg_error);
 
-  stimulus : process
+--------------------------------------------------------------------------
+
+-- p_stimulus : sends packet to the msg_parser
+
+--------------------------------------------------------------------------
+  p_stimulus : process
 
     procedure read_test_file is
       variable csv_file : csv_file_reader_type;
@@ -113,7 +119,6 @@ begin  -- architecture bench
         wait until rising_edge(clk);
       end loop;
     end procedure read_test_file;
-
   begin
 
     rst      <= '1';
@@ -126,7 +131,6 @@ begin  -- architecture bench
     s_tlast  <= '0';
     wait until rising_edge(clk);
 
-
     read_test_file;
     s_tvalid <= '0';
     s_tlast  <= '0';
@@ -138,7 +142,13 @@ begin  -- architecture bench
 
   end process;
 
-  clocking_clk : process
+--------------------------------------------------------------------------
+
+-- p_clocking : clock management
+
+--------------------------------------------------------------------------
+  
+  p_clocking_clk : process
   begin
     while not stop_the_clock loop
       clk <= '0', '1' after clk_period / 2;
@@ -147,7 +157,7 @@ begin  -- architecture bench
     wait;
   end process;
 
-  clocking_clk10 : process
+  p_clocking_clk10 : process
   begin
     while not stop_the_clock loop
       clk10 <= '0', '1' after clk10_period / 2;
@@ -157,14 +167,19 @@ begin  -- architecture bench
   end process;
 
 
-    p_selfcheck : process
+--------------------------------------------------------------------------
+
+-- p_selfcheck : Self check each message payload and length
+
+--------------------------------------------------------------------------
+  p_selfcheck : process
 
     procedure selfcheck (
-      constant ref_data   : in std_logic_vector;
-      constant input_data : in std_logic_vector;
-      constant ref_length : in std_logic_vector;
+      constant ref_data     : in std_logic_vector;
+      constant input_data   : in std_logic_vector;
+      constant ref_length   : in std_logic_vector;
       constant input_length : in std_logic_vector;
-      constant packet_nb  : in integer
+      constant packet_nb    : in integer
       ) is
     begin
       if(input_data = ref_data and input_length = ref_length) then
@@ -177,7 +192,7 @@ begin  -- architecture bench
         report "_______ [ERROR] _______" severity failure;
       end if;
     end procedure selfcheck;
-  
+
   begin
 
     wait until rising_edge(clk10) and msg_valid = '1';
@@ -211,9 +226,9 @@ begin  -- architecture bench
     selfcheck(x"0000000000000000000000000000000000000000003131313131313131313131", msg_data, x"000B", msg_length, 9);
 
     wait until rising_edge(clk10) and msg_valid = '1';
-    selfcheck(x"00000000000000000000000000000000000000000000005A5A5A5A5A5A5A5A5A", msg_data, x"0009", msg_length, 10);   
+    selfcheck(x"00000000000000000000000000000000000000000000005A5A5A5A5A5A5A5A5A", msg_data, x"0009", msg_length, 10);
 
     wait;
   end process;
-  
+
 end architecture bench;
