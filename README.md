@@ -4,6 +4,6 @@ msg_parser is an IP coded in VHDL which parses a message coming from an AXI4 Str
 
 # How to run
 
- - clone the project `git clone https://github.com/KyAx/msg_parser`
+ - clone the project using `git clone https://github.com/KyAx/msg_parser`
 
 - start scripts/run_sim.bat
