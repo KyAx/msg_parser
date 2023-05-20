@@ -121,9 +121,8 @@ architecture rtl of msg_parser is
   signal r_msg_valid   : std_logic;
 
   -- Counters + retrieve length signals
-  signal r_data_cnt          : integer; -- put to unsigned
+  signal r_data_cnt          : integer;  -- put to unsigned
   signal r_payload_cnt       : integer;
-  signal r2_tdata_dout       : std_logic_vector(C_RD_DATA_W-1 downto 0);
   signal r_length_first_byte : std_logic_vector(7 downto 0);
 
   -- activate IP
@@ -134,7 +133,6 @@ architecture rtl of msg_parser is
   signal fsm_parser : t_fsm_parser;
 
   -- add : control FIFO wren when not full
-  -- smart concat len
   -- integer to unsigned
   -- remove start ip
   -- remove counter starting from 1
@@ -170,7 +168,7 @@ architecture rtl of msg_parser is
       valid_o        : out std_logic);
   end component ces_util_fifo;
 
-  
+
 
 begin
 
@@ -239,7 +237,7 @@ begin
 
   -- r_wr_enable <= not(r_tdata_full) and t_valid;
   --
-  
+
 --------------------------------------------------------------------------
 
 -- p_start_ip : wait s_tlast to start IP on the beginning of a packet
@@ -307,8 +305,8 @@ begin
     if(rst = '1') then
       r_tdata_ren <= '0';
     elsif(rising_edge(clk10)) then
-       -- read data in FIFO when not empty
-       r_tdata_ren <= not(r_tdata_empty);
+      -- read data in FIFO when not empty
+      r_tdata_ren <= not(r_tdata_empty);
     end if;
   end process;
 
@@ -336,7 +334,7 @@ begin
       end loop;
       return ret;
     end function concat;
-    
+
   begin
     if(rst = '1') then
 
@@ -354,9 +352,6 @@ begin
 
     elsif rising_edge(clk10) then
 
-      -- pipeline d_out
-      r2_tdata_dout <= r_tdata_dout;
-
       -- FSM to parse data
       case fsm_parser is
 
@@ -368,10 +363,12 @@ begin
 
           end if;
 
+          if(r_data_cnt = C_FIELD_CNT_POS-1 and (r_tkeep_dout = b"11")) then
+            r_msg_cnt(7 downto 0) <= r_tdata_dout;
+          end if;
+
           if(r_data_cnt = C_FIELD_CNT_POS and (r_tkeep_dout = b"11")) then
-            r_msg_cnt  <= r_tdata_dout & r2_tdata_dout;
-            -- r_msg_cnt(7 downto 0) <= r_tdata_dout;
-            -- r_msg_cnt(15 downto 8) <= r_tdata_dout;
+            r_msg_cnt(15 downto 8) <= r_tdata_dout;
             fsm_parser <= LEN;
           end if;
 
@@ -417,16 +414,16 @@ begin
             r_msg_cnt_chk <= std_logic_vector(unsigned(r_msg_cnt_chk) + 1);
             r_payload_cnt <= 0;
             r_data_cnt    <= C_FIELD_LEN_POS-1;
-           --   r_msg_data    <= r_msg_data(247 downto 0) & r_tdata_dout;--  r_tdata_dout & r_msg_data(255 downto 8);
+            --   r_msg_data    <= r_msg_data(247 downto 0) & r_tdata_dout;--  r_tdata_dout & r_msg_data(255 downto 8);
             r_msg_data    <= concat(r_msg_data, r_tdata_dout, r_payload_cnt);
             fsm_parser    <= LEN;
 
           -- concatenate data and pad with zeros when rego to CNT
           elsif((r_tdata_valid = '1') and (r_tkeep_dout = b"11") and r_payload_cnt = 0) then
             r_payload_cnt <= r_payload_cnt + 1;
-            r_msg_data    <= C_ZERO(247 downto 0) & r_tdata_dout; -- r_tdata_dout & C_ZERO(255 downto 8);
+            r_msg_data    <= C_ZERO(247 downto 0) & r_tdata_dout;  -- r_tdata_dout & C_ZERO(255 downto 8);
             r_data_cnt    <= r_data_cnt + 1;
-          
+
           -- concatenate data
           elsif((r_tdata_valid = '1') and (r_tkeep_dout = b"11")) then
             r_payload_cnt <= r_payload_cnt + 1;

@@ -3,10 +3,10 @@
 -- Project    : 
 -------------------------------------------------------------------------------
 -- File       : msg_parser_tb.vhd
--- Author     :   <ltran@WDPHY064Z>
+-- Author     :   <ltran>
 -- Company    : 
 -- Created    : 2023-05-11
--- Last update: 2023-05-20
+-- Last update: 2023-05-21
 -- Platform   : 
 -- Standard   : VHDL'93/02
 -------------------------------------------------------------------------------
@@ -126,6 +126,7 @@ begin  -- architecture bench
     s_tlast  <= '0';
     wait until rising_edge(clk);
 
+
     read_test_file;
     s_tvalid <= '0';
     s_tlast  <= '0';
@@ -134,9 +135,8 @@ begin  -- architecture bench
     s_tuser  <= '0';
     wait;
 
- 
-  end process;
 
+  end process;
 
   clocking_clk : process
   begin
@@ -156,4 +156,64 @@ begin  -- architecture bench
     wait;
   end process;
 
+
+    p_selfcheck : process
+
+    procedure selfcheck (
+      constant ref_data   : in std_logic_vector;
+      constant input_data : in std_logic_vector;
+      constant ref_length : in std_logic_vector;
+      constant input_length : in std_logic_vector;
+      constant packet_nb  : in integer
+      ) is
+    begin
+      if(input_data = ref_data and input_length = ref_length) then
+        report "Packet Number :" & integer'image(packet_nb) severity note;
+        report "Reference Data  :" & to_hex_string(unsigned(ref_data));
+        report "_______ [OK] _______";
+      else
+        report "Packet Number :" & integer'image(packet_nb);
+        report "Reference Data  :" & to_hex_string(unsigned(ref_data));
+        report "_______ [ERROR] _______" severity failure;
+      end if;
+    end procedure selfcheck;
+  
+  begin
+
+    wait until rising_edge(clk10) and msg_valid = '1';
+    selfcheck(x"000000000000000000000000000000000000000000000000630D658DABCDDCEF", msg_data, x"0008", msg_length, 0);
+
+    wait until rising_edge(clk10) and msg_valid = '1';
+    selfcheck(x"000000000000000000000000000000000000A5B00388956084130858045DE506", msg_data, x"000E", msg_length, 1);
+
+    wait until rising_edge(clk10) and msg_valid = '1';
+    selfcheck(x"000000000000000000000000000000000000000000000000d845a30c85468052", msg_data, x"0008", msg_length, 2);
+
+    wait until rising_edge(clk10) and msg_valid = '1';
+    selfcheck(x"0000000000000000000000000000000000000000000000006262626262626262", msg_data, x"0008", msg_length, 3);
+
+    wait until rising_edge(clk10) and msg_valid = '1';
+    selfcheck(x"0000000000000000000000000000000000000000686868686868686868686868", msg_data, x"000C", msg_length, 4);
+
+    wait until rising_edge(clk10) and msg_valid = '1';
+    selfcheck(x"0000000000000000000000000000000000000000000070707070707070707070", msg_data, x"000A", msg_length, 5);
+
+    wait until rising_edge(clk10) and msg_valid = '1';
+    selfcheck(x"00000000000000000000000000000000007a7a7a7a7a7a7a7a7a7a7a7a7a7a7a", msg_data, x"000F", msg_length, 6);
+
+    wait until rising_edge(clk10) and msg_valid = '1';
+    selfcheck(x"0000000000000000000000000000000000004d4d4d4d4d4d4d4d4d4d4d4d4d4d", msg_data, x"000E", msg_length, 7);
+
+    wait until rising_edge(clk10) and msg_valid = '1';
+    selfcheck(x"0000000000000000000000000000003838383838383838383838383838383838", msg_data, x"0011", msg_length, 8);
+
+    wait until rising_edge(clk10) and msg_valid = '1';
+    selfcheck(x"0000000000000000000000000000000000000000003131313131313131313131", msg_data, x"000B", msg_length, 9);
+
+    wait until rising_edge(clk10) and msg_valid = '1';
+    selfcheck(x"00000000000000000000000000000000000000000000005A5A5A5A5A5A5A5A5A", msg_data, x"0009", msg_length, 10);   
+
+    wait;
+  end process;
+  
 end architecture bench;

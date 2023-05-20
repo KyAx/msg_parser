@@ -34,7 +34,6 @@ add wave -noupdate -expand -group {FIFO : TKEEP} -color {Blue Violet} /msg_parse
 add wave -noupdate -expand -group {FIFO : TKEEP} -color {Blue Violet} -radix hexadecimal /msg_parser_tb/msg_parser_1/r_tkeep_cnt
 add wave -noupdate -expand -group {FIFO : TKEEP} -color {Blue Violet} /msg_parser_tb/msg_parser_1/r_tkeep_almost_empty
 add wave -noupdate -expand -group {FIFO : TKEEP} -color {Blue Violet} /msg_parser_tb/msg_parser_1/r_tkeep_empty
-add wave -noupdate -expand -group Controllers -color {Light Blue} -radix hexadecimal /msg_parser_tb/msg_parser_1/r2_tdata_dout
 add wave -noupdate -expand -group Controllers -color {Light Blue} -radix unsigned /msg_parser_tb/msg_parser_1/r_msg_cnt
 add wave -noupdate -expand -group Controllers -color {Light Blue} -radix hexadecimal /msg_parser_tb/msg_parser_1/r_msg_cnt_chk
 add wave -noupdate -expand -group Controllers -color {Light Blue} -radix hexadecimal /msg_parser_tb/msg_parser_1/r_payload_cnt
@@ -62,7 +61,7 @@ add wave -noupdate -color Gray55 /msg_parser_tb/msg_parser_1/C_SANITY_CHECK
 add wave -noupdate -color Gray55 /msg_parser_tb/msg_parser_1/C_SIMULATION
 add wave -noupdate -color Gray55 /msg_parser_tb/msg_parser_1/C_TKEEP_NB
 TreeUpdate [SetDefaultTree]
-WaveRestoreCursors {{Cursor 1} {750357 ps} 0}
+WaveRestoreCursors {{Cursor 1} {545038 ps} 0}
 quietly wave cursor active 1
 configure wave -namecolwidth 150
 configure wave -valuecolwidth 293
