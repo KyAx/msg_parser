@@ -5,8 +5,8 @@
 -- File       : msg_parser.vhd
 -- Author     : Tran Leon  
 -- Company    :
--- Created    : 2023-05-04
--- Last update: 2023-05-19
+-- Created    : 2023-05-13
+-- Last update: 2023-05-20
 -- Platform   :
 -- Standard   : VHDL'93/02
 -------------------------------------------------------------------------------
@@ -16,7 +16,7 @@
 -------------------------------------------------------------------------------
 -- Revisions  :
 -- Date        Version  Author  Description
--- 2023-05-04  1.0      ltran   Created
+-- 2023-05-13  1.0      ltran   Created
 -------------------------------------------------------------------------------
 
 library ieee;
@@ -52,6 +52,7 @@ end msg_parser;
 
 architecture rtl of msg_parser is
 
+  -- constants for FIFO
   constant C_AXI_WIDTH       : integer := 64;
   constant C_FIELD_LEN_WIDTH : integer := 16;
   constant C_FIELD_CNT_WIDTH : integer := 16;
@@ -77,47 +78,58 @@ architecture rtl of msg_parser is
   constant C_SIMULATION         : integer := 0;
 
   -- Number of bytes taken by one readen TKEEP
-  constant C_TKEEP_NB : integer := 3;
+  constant C_TKEEP_NB : integer                          := 3;
+  constant C_ZERO     : std_logic_vector(msg_data'range) := (others => '0');
 
-  constant C_ZERO : std_logic_vector(msg_data'range) := (others => '0');
+  signal r_wr_clk  : std_logic;
+  signal r_rd_clk  : std_logic;
+  signal r_wr_rstn : std_logic;
+  signal r_rd_rstn : std_logic;
 
+  signal r_tdata  : std_logic_vector(C_WR_DATA_W - 1 downto 0);
+  signal r_tkeep  : std_logic_vector(C_TKEEP_WR_DATA_W - 1 downto 0);
+  signal r_tvalid : std_logic;
 
-  -- component dp_fifo is
-  --   generic (
-  --     G_DATA_WIDTH : positive;
-  --     G_WRITE_SIZE : positive;
-  --     G_READ_SIZE  : positive;
-  --     G_FIFO_DEPTH : positive);
-  --   port (
-  --     i_clk_write : in  std_logic;
-  --     i_clk_read  : in  std_logic;
-  --     i_reset     : in  std_logic;
-  --     i_wr_data   : in  std_logic_vector(G_DATA_WIDTH - 1 downto 0);
-  --     i_wr_enable : in  std_logic;
-  --     o_wr_full   : out std_logic;
-  --     o_rd_data   : out std_logic_vector(G_DATA_WIDTH - 1 downto 0);
-  --     i_rd_enable : in  std_logic;
-  --     o_rd_empty  : out std_logic);
-  -- end component dp_fifo;
+  -- tdata FIFO
+  signal r_tdata_full         : std_logic;
+  signal r_tdata_almost_full  : std_logic;
+  signal r_tdata_dout         : std_logic_vector(C_RD_DATA_W - 1 downto 0);
+  signal r_tdata_ren          : std_logic;
+  signal r_tdata_empty        : std_logic;
+  signal r_tdata_almost_empty : std_logic;
+  signal r_tdata_valid        : std_logic;
 
-  component dp_fifo is
-    generic (
-      G_FIFO_DEPTH    : positive;
-      G_WR_DATA_WIDTH : positive;
-      G_RD_DATA_WIDTH : positive);
-    port (
-      i_clk_write : in  std_logic;
-      i_clk_read  : in  std_logic;
-      i_reset     : in  std_logic;
-      i_wr_data   : in  std_logic_vector(G_WR_DATA_WIDTH - 1 downto 0);
-      i_wr_enable : in  std_logic;
-      o_wr_full   : out std_logic;
-      o_rd_data   : out std_logic_vector(G_RD_DATA_WIDTH - 1 downto 0);
-      i_rd_enable : in  std_logic;
-      o_rd_empty  : out std_logic);
-  end component dp_fifo;
+  -- tkeep FIFO
+  signal r_tkeep_full         : std_logic;
+  signal r_tkeep_almost_full  : std_logic;
+  signal r_tkeep_dout         : std_logic_vector(C_TKEEP_RD_DATA_W - 1 downto 0);
+  signal r_tkeep_ren          : std_logic;
+  signal r_tkeep_empty        : std_logic;
+  signal r_tkeep_almost_empty : std_logic;
+  signal r_tkeep_valid        : std_logic;
 
+  -- tkeep management
+  signal r_tkeep_cnt : std_logic_vector(7 downto 0);
 
+  -- msg signals
+  signal r_msg_length  : std_logic_vector(C_FIELD_LEN_WIDTH-1 downto 0);
+  signal r_msg_cnt     : std_logic_vector(C_FIELD_CNT_WIDTH-1 downto 0);
+  signal r_msg_data    : std_logic_vector(8*MAX_MSG_BYTES-1 downto 0);
+  signal r_msg_cnt_chk : std_logic_vector(C_FIELD_CNT_WIDTH-1 downto 0);
+  signal r_msg_valid   : std_logic;
+
+  signal r_data_cnt          : integer;
+  signal r_payload_cnt       : integer;
+  signal r2_tdata_dout       : std_logic_vector(C_RD_DATA_W-1 downto 0);
+  signal r_length_first_byte : std_logic_vector(7 downto 0);
+
+  signal r_start_ip : std_logic;
+
+  -- fsm to parse msg
+  type t_fsm_parser is (CNT, LEN, PAYLOAD);
+  signal fsm_parser : t_fsm_parser;
+
+  -- FIFO Component for DATA + TKEEP
   component ces_util_fifo is
     generic (
       g_dual_clock         : boolean;
@@ -148,58 +160,6 @@ architecture rtl of msg_parser is
       valid_o        : out std_logic);
   end component ces_util_fifo;
 
-
-  signal r_wr_clk  : std_logic;
-  signal r_rd_clk  : std_logic;
-  signal r_wr_rstn : std_logic;
-  signal r_rd_rstn : std_logic;
-
-  signal r_tdata  : std_logic_vector(C_WR_DATA_W - 1 downto 0);
-  signal r_tkeep  : std_logic_vector(C_TKEEP_WR_DATA_W - 1 downto 0);
-  signal r_tvalid : std_logic;
-
-  -- tdata FIFO
-  signal r_tdata_full         : std_logic;
-  signal r_tdata_almost_full  : std_logic;
-  signal r_tdata_dout         : std_logic_vector(C_RD_DATA_W - 1 downto 0);
-  signal r_tdata_ren          : std_logic;
-  signal r_tdata_empty        : std_logic;
-  signal r_tdata_almost_empty : std_logic;
-  signal r_tdata_valid        : std_logic;
-
-
-  -- tkeep FIFO
-  signal r_tkeep_full         : std_logic;
-  signal r_tkeep_almost_full  : std_logic;
-  signal r_tkeep_dout         : std_logic_vector(C_TKEEP_RD_DATA_W - 1 downto 0);
-  signal r_tkeep_ren          : std_logic;
-  signal r_tkeep_empty        : std_logic;
-  signal r_tkeep_almost_empty : std_logic;
-  signal r_tkeep_valid        : std_logic;
-
-  -- tkeep management
-  signal r_tkeep_cnt : std_logic_vector(7 downto 0);
-
-  signal r_msg_length  : std_logic_vector(C_FIELD_LEN_WIDTH-1 downto 0);
-  signal r_msg_cnt     : std_logic_vector(C_FIELD_CNT_WIDTH-1 downto 0);
-  signal r_msg_data    : std_logic_vector(8*MAX_MSG_BYTES-1 downto 0);
-  signal r_msg_cnt_chk : std_logic_vector(C_FIELD_CNT_WIDTH-1 downto 0);
-  signal r_msg_valid   : std_logic;
-
-  signal r_length_taken : std_logic;
-
-  signal r_data_cnt          : integer;
-  signal r_payload_cnt       : integer;
-  signal r2_tdata_dout       : std_logic_vector(C_RD_DATA_W-1 downto 0);
-  signal r_length_first_byte : std_logic_vector(7 downto 0);
-
-  signal r2_tdata_ren : std_logic;
-
-  signal r_start_ip : std_logic;
-
-
-  type t_fsm_parser is (CNT, LEN, PAYLOAD);
-  signal fsm_parser : t_fsm_parser;
 
 begin
 
@@ -265,8 +225,11 @@ begin
       almost_empty_o => r_tkeep_almost_empty,
       valid_o        => r_tkeep_valid);
 
+--------------------------------------------------------------------------
 
+-- p_start_ip : wait s_tlast to start IP on the beginning of a packet
 
+--------------------------------------------------------------------------
 
   p_start_ip : process(clk)
   begin
@@ -287,49 +250,79 @@ begin
     end if;
   end process;
 
-  p_read_fifo : process(clk10)
+--------------------------------------------------------------------------
+
+-- p_tkeep_mngmt : manage tkeep_ren to read FIFO
+
+--------------------------------------------------------------------------
+  p_tkeep_mngmt : process(clk10)
   begin
     if(rst = '1') then
-
-      r_data_cnt    <= 0;
-      r_payload_cnt <= 0;
-      r_msg_data    <= (others => '0');
-      r_tkeep_cnt   <= x"01";
-
-      r_msg_cnt_chk <= (others => '0');
-
-      r_msg_valid <= '0';
-
+      r_tkeep_cnt <= x"01";
     elsif rising_edge(clk10) then
 
-      -- pipeline d_out
-      r2_tdata_dout <= r_tdata_dout;
-      r2_tdata_ren  <= r_tdata_ren;
-
-
-      if(r_tdata_empty = '0') then
-        r_tdata_ren <= '1';
-      else
-        r_tdata_ren <= '0';
-      end if;
-
-      -- activate tkeep and cnt
-      -- if(r_tdata_valid = '1') then
+      -- Counter : 1 data of tkeep is used for 2 data bytes
       if(r_tkeep_cnt = x"02") then
         r_tkeep_cnt <= x"01";
-      elsif(r_tdata_valid = '1' ) then
+      elsif(r_tdata_valid = '1') then
         r_tkeep_cnt <= std_logic_vector(unsigned(r_tkeep_cnt) + 1);
       end if;
 
-      if(r_tdata_valid = '1' and r_tkeep_cnt = x"01" ) then
+      -- Read tkeep FIFO
+      if(r_tdata_valid = '1' and r_tkeep_cnt = x"01") then
         r_tkeep_ren <= '1';
       else
         r_tkeep_ren <= '0';
       end if;
 
+    end if;
+  end process;
 
+--------------------------------------------------------------------------
+
+-- p_tdata_ren : manage tdata_ren to read FIFO
+
+--------------------------------------------------------------------------
+
+  p_tdata_ren : process(clk10)
+  begin
+    if(rst = '1') then
+      r_tdata_ren <= '0';
+    elsif(rising_edge(clk10)) then
+      -- read data in FIFO when not empty
+      if(r_tdata_empty = '0') then
+        r_tdata_ren <= '1';
+      else
+        r_tdata_ren <= '0';
+      end if;
+    end if;
+  end process;
+
+--------------------------------------------------------------------------
+
+-- p_parser : manage parsing FSM
+
+--------------------------------------------------------------------------
+  p_parser : process(clk10)
+  begin
+    if(rst = '1') then
+
+      r_data_cnt    <= 0;
+      r_payload_cnt <= 0;
+
+      r_msg_data    <= (others => '0');
+      r_msg_cnt_chk <= (others => '0');
+      r_msg_valid   <= '0';
+
+    elsif rising_edge(clk10) then
+
+      -- pipeline d_out
+      r2_tdata_dout <= r_tdata_dout;
+
+      -- FSM to parse data
       case fsm_parser is
 
+        -- Retrieve MSG_CNT
         when CNT =>
 
           if (r_tdata_valid = '1' and r_tkeep_dout = b"11") then
@@ -341,7 +334,9 @@ begin
             fsm_parser <= LEN;
           end if;
 
+        -- Retrieve MSG_LEN
         when LEN =>
+          
           r_msg_valid <= '0';
 
           if (r_tdata_valid = '1' and r_tkeep_dout = b"11") then
@@ -358,15 +353,15 @@ begin
           end if;
 
 
-
+        -- MSG_PAYLOAD FIELD
         when PAYLOAD =>
 
+          -- r_msg_valid mngmt
           if(r_msg_valid = '1') then
             r_msg_valid <= '0';
           elsif(r_payload_cnt = unsigned(r_msg_length) - 1) then
             r_msg_valid <= '1';
           end if;
-
 
           -- for end packet
           if((r_payload_cnt = unsigned(r_msg_length)) and (r_tdata_valid = '1') and (unsigned(r_msg_cnt_chk) = unsigned(r_msg_cnt)-1)) then
@@ -374,41 +369,34 @@ begin
             r_data_cnt    <= 0;
             r_msg_cnt_chk <= (others => '0');
             r_msg_data    <= (others => '0');
-            fsm_parser <= CNT;
+            fsm_parser    <= CNT;
 
           -- for end msg
           elsif((r_payload_cnt = unsigned(r_msg_length)-1) and (r_tdata_valid = '1') and (unsigned(r_msg_cnt_chk) < unsigned(r_msg_cnt)-1)) then
-
             r_msg_cnt_chk <= std_logic_vector(unsigned(r_msg_cnt_chk) + 1);
-
             r_payload_cnt <= 0;
             r_data_cnt    <= C_FIELD_LEN_POS-1;
             r_msg_data    <= r_tdata_dout & r_msg_data(255 downto 8);
-            
             fsm_parser <= LEN;
 
+          -- concatenate data and pad with zeros 
           elsif((r_tdata_valid = '1') and (r_tkeep_dout = b"11") and r_payload_cnt = 0) then
-            
             r_payload_cnt <= r_payload_cnt + 1;
             r_msg_data    <= r_tdata_dout & C_ZERO(255 downto 8);
             r_data_cnt    <= r_data_cnt + 1;
 
+          -- concatenate data
           elsif((r_tdata_valid = '1') and (r_tkeep_dout = b"11")) then
             r_payload_cnt <= r_payload_cnt + 1;
             r_msg_data    <= r_tdata_dout & r_msg_data(255 downto 8);
+            r_data_cnt    <= r_data_cnt + 1;
 
-            r_data_cnt <= r_data_cnt + 1;
           end if;
       end case;
-
-
-      -- msg_valid pulse
 
     end if;
 
   end process;
-
-
 
   msg_data   <= r_msg_data;
   msg_valid  <= r_msg_valid;
