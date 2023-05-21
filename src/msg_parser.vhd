@@ -336,7 +336,7 @@ begin
                 fsm_parser    <= CNT;
               else                                  -- for end msg
                 r_msg_cnt_chk <= r_msg_cnt_chk + 1;
-                r_data_cnt    <= 2;
+                r_data_cnt    <= C_FIELD_LEN_POS-1;
                 fsm_parser    <= LEN;
               end if;
             else                                    -- concatenate data

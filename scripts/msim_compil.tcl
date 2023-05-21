@@ -50,7 +50,7 @@ foreach {library file_list} $library_file_list {
   foreach file $file_list {
     if { $last_compile_time < [file mtime $file] } {
       if [regexp {.vhdl?$} $file] {
-        vcom $file
+        vcom -2008 $file
       } else {
         vlog $file
       }
