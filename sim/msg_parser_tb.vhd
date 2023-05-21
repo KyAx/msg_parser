@@ -105,6 +105,7 @@ begin  -- architecture bench
 --------------------------------------------------------------------------
   p_stimulus : process
 
+	-- procedure to send the samples stored in a csv into signals
     procedure read_test_file is
       variable csv_file : csv_file_reader_type;
     begin
@@ -131,6 +132,7 @@ begin  -- architecture bench
     s_tlast  <= '0';
     wait until rising_edge(clk);
 
+	-- send samples
     read_test_file;
     s_tvalid <= '0';
     s_tlast  <= '0';
@@ -148,6 +150,7 @@ begin  -- architecture bench
 
 --------------------------------------------------------------------------
   
+  -- slower clock (input data)
   p_clocking_clk : process
   begin
     while not stop_the_clock loop
@@ -157,6 +160,7 @@ begin  -- architecture bench
     wait;
   end process;
 
+  -- faster clock (decoding)
   p_clocking_clk10 : process
   begin
     while not stop_the_clock loop
@@ -174,6 +178,8 @@ begin  -- architecture bench
 --------------------------------------------------------------------------
   p_selfcheck : process
 
+	-- procedure for selfchecking IP output with reference data
+	-- report [OK] or [ERROR]
     procedure selfcheck (
       constant ref_data     : in std_logic_vector;
       constant input_data   : in std_logic_vector;
