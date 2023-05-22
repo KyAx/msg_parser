@@ -16,4 +16,6 @@ This design is provided with a selfcheck test with differents samples recorded i
 
 - If you do have modelsim, you can start the simulation with `scripts/msim_compil.bat`  (If you don't have modelsim, there is a free and fast installation version here : https://www.intel.com/content/www/us/en/software-kit/750368/modelsim-intel-fpgas-standard-edition-software-version-18-1.html)
 
+- `scripts/msim_clean.bat` can be used to clean the directory by removing the modelsim folder created by the `msim_compil.bat` script.  
+
 - In case there is a problem on compilation on the testbench, go to Modelsim: Compile > Compile Options > Use VHDL 1076-2008. 
