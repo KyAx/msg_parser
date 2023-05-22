@@ -244,6 +244,7 @@ begin
       if r_tkeep_ren = '1' then
         tkeep <= unsigned(r_tkeep_dout);
       elsif r_tdata_valid = '1' then
+	    -- 1 bit of tkeep is used for 1 byte of data
         tkeep <= shift_right(tkeep, 1);
       end if;
     end if;
@@ -257,7 +258,9 @@ begin
 
 --------------------------------------------------------------------------
   p_parser : process(clk10)
-    -- concat depending loaded_len 
+    -- concat function : concatenate msg_data depending loaded_len and full_len
+	-- loaded_len indicates the data which is already in the message
+	-- full_len indicates the full length of the data
     function concat (
       reg         : std_logic_vector;
       concat_with : std_logic_vector;
@@ -268,10 +271,13 @@ begin
       variable ret : std_logic_vector(reg'range);
     begin
       for i in 0 to reg'length-1 loop
+		-- concatenate the data 
         if i >= loaded_len*8 and i < concat_with'length+loaded_len*8 then
           ret(i) := concat_with(i-loaded_len*8);
+		-- set to 0 if > full_length
         elsif i > (full_len*8)-1 then
           ret(i) := '0';
+		-- keep last data of the message
         else
           ret(i) := reg(i);
         end if;
@@ -295,18 +301,23 @@ begin
       
       r_msg_valid <= '0';
 
+      -- checking for tdata_valid from FIFO and byte_en which depends on tkeep
       if r_tdata_valid = '1' and byte_en = '1' then
 
         r_data_cnt <= r_data_cnt + 1;
 
         -- FSM to parse data
         case fsm_parser is
+		
           -- Retrieve MSG_CNT
           when CNT =>
+		  
+			-- Retrieve first byte of msg_cnt
             if r_data_cnt = C_FIELD_CNT_POS-1 then
               r_msg_cnt(7 downto 0) <= unsigned(r_tdata_dout);
             end if;
 
+			-- Retrieve second byte of msg_cnt
             if r_data_cnt = C_FIELD_CNT_POS then
               r_msg_cnt(15 downto 8) <= unsigned(r_tdata_dout);
               fsm_parser             <= LEN;
@@ -314,10 +325,13 @@ begin
 
           -- Retrieve MSG_LEN
           when LEN =>
+		  
+			-- Retrieve first byte of msg_length
             if r_data_cnt = C_FIELD_LEN_POS-1 then
               r_msg_length(7 downto 0) <= unsigned(r_tdata_dout);
             end if;
 
+			-- Retrieve second byte of msg_length
             if r_data_cnt = C_FIELD_LEN_POS then
               r_msg_length(15 downto 8) <= unsigned(r_tdata_dout);
               fsm_parser                <= PAYLOAD;
@@ -325,21 +339,27 @@ begin
 
           -- MSG_PAYLOAD FIELD
           when PAYLOAD =>
+		  
+			-- concatenate data 
             r_msg_data <= concat(r_msg_data, r_tdata_dout, r_payload_cnt, r_msg_length);
 
+			-- checking if payload counter has reached the indicated length
             if r_payload_cnt >= r_msg_length-1 then
               r_msg_valid   <= '1';
               r_payload_cnt <= 0;
-              if r_msg_cnt_chk >= r_msg_cnt-1 then  -- for end packet
+			  -- checking for end of packet
+              if r_msg_cnt_chk >= r_msg_cnt-1 then  
                 r_data_cnt    <= 0;
                 r_msg_cnt_chk <= (others => '0');
                 fsm_parser    <= CNT;
-              else                                  -- for end msg
+			-- checking for end of message 
+              else                                  
                 r_msg_cnt_chk <= r_msg_cnt_chk + 1;
                 r_data_cnt    <= C_FIELD_LEN_POS-1;
                 fsm_parser    <= LEN;
               end if;
-            else                                    -- concatenate data
+            else                                    
+		      -- update payload counter
               r_payload_cnt <= r_payload_cnt + 1;
             end if;
         end case;
