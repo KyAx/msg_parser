@@ -55,9 +55,8 @@ add wave -noupdate -color Gray55 /msg_parser_tb/msg_parser_1/C_ALMOST_EMPTY_LIMI
 add wave -noupdate -color Gray55 /msg_parser_tb/msg_parser_1/C_ALMOST_FULL_LIMIT
 add wave -noupdate -color Gray55 /msg_parser_tb/msg_parser_1/C_SANITY_CHECK
 add wave -noupdate -color Gray55 /msg_parser_tb/msg_parser_1/C_SIMULATION
-add wave -noupdate -color Gray55 /msg_parser_tb/msg_parser_1/C_TKEEP_NB
 TreeUpdate [SetDefaultTree]
-WaveRestoreCursors {{Cursor 1} {545038 ps} 0}
+WaveRestoreCursors {{Cursor 1} {2140076 ps} 0}
 quietly wave cursor active 1
 configure wave -namecolwidth 150
 configure wave -valuecolwidth 293

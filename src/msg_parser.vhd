@@ -98,10 +98,6 @@ architecture rtl of msg_parser is
   constant C_SANITY_CHECK       : boolean := false;
   constant C_SIMULATION         : integer := 0;
 
-  -- Number of bytes taken by one readen TKEEP
-  constant C_TKEEP_NB : integer                          := 2;
-  constant C_ZERO     : std_logic_vector(msg_data'range) := (others => '0');
-
   -- FIFO clk/rst
   signal r_wr_clk  : std_logic;
   signal r_rd_clk  : std_logic;
